@@ -1,0 +1,124 @@
+version: '3.8'
+
+services:
+  # Frontend service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000/api
+      - REACT_APP_SOCKET_URL=http://localhost:5000
+    restart: unless-stopped
+
+  # Backend service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - app-network
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/fan_meet_greet_db?schema=public
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=your_jwt_secret_key_here
+      - JWT_EXPIRES_IN=1d
+      - FRONTEND_URL=http://localhost:3000
+      - TWILIO_ACCOUNT_SID=your_twilio_account_sid
+      - TWILIO_API_KEY=your_twilio_api_key
+      - TWILIO_API_SECRET=your_twilio_api_secret
+      - STRIPE_SECRET_KEY=your_stripe_secret_key
+      - STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+      - SENDGRID_API_KEY=your_sendgrid_api_key
+      - EMAIL_FROM=noreply@fanmeetgreet.com
+    restart: unless-stopped
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:14-alpine
+    ports:
+      - "5432:5432"
+    networks:
+      - app-network
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=fan_meet_greet_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # Redis for caching and real-time features
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  # Elasticsearch for search functionality
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.0
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - app-network
+    environment:
+      - discovery.type=single-node
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+
+  # Prometheus for monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    networks:
+      - app-network
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+
+  # Grafana for visualizing monitoring data
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    networks:
+      - app-network
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana-data:/var/lib/grafana
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  elasticsearch-data:
+  prometheus-data:
+  grafana-data:
