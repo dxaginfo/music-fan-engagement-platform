@@ -1,0 +1,201 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserType {
+  ARTIST
+  FAN
+  MANAGER
+  ADMIN
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  passwordHash    String
+  userType        UserType
+  firstName       String?
+  lastName        String?
+  profileImageUrl String?
+  bio             String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  lastLogin       DateTime?
+  isVerified      Boolean   @default(false)
+  
+  // Relations
+  artistProfile   ArtistProfile?
+  registrations   Registration[]
+  merchandiseOrders MerchandiseOrder[]
+}
+
+model ArtistProfile {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artistName      String
+  genre           String?
+  websiteUrl      String?
+  socialMediaLinks Json?
+  bookingEmail    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  events          Event[]
+  merchandiseItems MerchandiseItem[]
+}
+
+enum EventType {
+  VIRTUAL
+  IN_PERSON
+  HYBRID
+}
+
+model Event {
+  id                  String    @id @default(uuid())
+  artistId            String
+  artist              ArtistProfile @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  title               String
+  description         String?
+  eventType           EventType
+  startTime           DateTime
+  endTime             DateTime
+  capacity            Int
+  price               Decimal   @db.Decimal(10, 2)
+  currency            String    @db.VarChar(3)
+  location            String?
+  virtualMeetingLink  String?
+  isPublished         Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  
+  // Relations
+  registrations       Registration[]
+  queueItems          QueueItem[]
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  CHECKED_IN
+  COMPLETED
+  NO_SHOW
+}
+
+model Registration {
+  id                  String    @id @default(uuid())
+  eventId             String
+  event               Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registrationTime    DateTime  @default(now())
+  paymentStatus       PaymentStatus
+  paymentId           String?
+  accessCode          String?
+  checkInTime         DateTime?
+  status              RegistrationStatus @default(REGISTERED)
+  notes               String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  
+  // Relations
+  queueItem           QueueItem?
+  merchandiseOrders   MerchandiseOrder[]
+  feedback            Feedback?
+}
+
+enum QueueStatus {
+  WAITING
+  ACTIVE
+  COMPLETED
+  SKIPPED
+}
+
+model QueueItem {
+  id                  String    @id @default(uuid())
+  eventId             String
+  event               Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  registrationId      String    @unique
+  registration        Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  position            Int
+  estimatedStartTime  DateTime?
+  actualStartTime     DateTime?
+  actualEndTime       DateTime?
+  status              QueueStatus @default(WAITING)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model MerchandiseItem {
+  id                  String    @id @default(uuid())
+  artistId            String
+  artist              ArtistProfile @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  name                String
+  description         String?
+  price               Decimal   @db.Decimal(10, 2)
+  currency            String    @db.VarChar(3)
+  imageUrl            String?
+  inventoryCount      Int
+  isExclusive         Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  
+  // Relations
+  orderItems          OrderItem[]
+}
+
+model MerchandiseOrder {
+  id                  String    @id @default(uuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registrationId      String?
+  registration        Registration? @relation(fields: [registrationId], references: [id])
+  orderDate           DateTime  @default(now())
+  totalAmount         Decimal   @db.Decimal(10, 2)
+  paymentStatus       PaymentStatus
+  shippingAddress     Json?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  
+  // Relations
+  orderItems          OrderItem[]
+}
+
+model OrderItem {
+  id                  String    @id @default(uuid())
+  orderId             String
+  order               MerchandiseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  merchandiseId       String
+  merchandiseItem     MerchandiseItem @relation(fields: [merchandiseId], references: [id])
+  quantity            Int
+  unitPrice           Decimal   @db.Decimal(10, 2)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  
+  @@unique([orderId, merchandiseId])
+}
+
+model Feedback {
+  id                  String    @id @default(uuid())
+  registrationId      String    @unique
+  registration        Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  rating              Int
+  comments            String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
